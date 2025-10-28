@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Acuracidade de Estoque - Atividade Interativa</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0;}
+        .container { max-width: 700px; margin: 30px auto; background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px #ccc;}
+        h1 { text-align: center; color: #274690; }
+        .author { text-align: center; margin-bottom: 20px; font-weight: bold; color: #6d6d6d;}
+        .input-group { text-align: center; margin-bottom: 15px; }
+        input[type="text"] { padding: 8px; width: 60%; border-radius: 5px; border: 1px solid #aaa;}
+        button { padding: 10px 25px; background: #274690; color: #fff; border: none; border-radius: 5px; cursor: pointer;}
+        button:disabled { background: #aaa;}
+        .timer { font-size: 1.2em; margin: 10px 0; text-align: center;}
+        .medal { font-size: 1.5em; margin-right: 5px;}
+        .ranking { margin: 25px 0; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left;}
+        th { background: #274690; color: #fff;}
+        .activity { display: none; margin-top: 25px;}
+        .question { margin-bottom: 15px;}
+        .result { margin-top: 15px; font-weight: bold;}
+        .hidden { display: none;}
+    </style>
+    <!-- Adicione os scripts do Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Acuracidade de Estoque</h1>
+        <div class="author">Professor Luiz Eduardo Peixoto Borges</div>
+        
+        <div class="input-group">
+            <input type="text" id="studentName" placeholder="Digite seu nome">
+            <button id="startBtn">Iniciar Atividade</button>
+        </div>
+        <div class="timer hidden" id="timer">⏱️ Tempo: <span id="time">0</span> segundos</div>
+
+        <div class="activity" id="activity">
+            <div class="question" id="questionBox"></div>
+            <div id="optionsBox"></div>
+            <button id="nextBtn" class="hidden">Próxima</button>
+            <div class="result" id="resultBox"></div>
+        </div>
+
+        <div class="ranking">
+            <h3>Ranking Global (Integrado)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Posição</th>
+                        <th>Nome</th>
+                        <th>Tempo (s)</th>
+                        <th>Medalha</th>
+                    </tr>
+                </thead>
+                <tbody id="rankingTable">
+                    <!-- Ranking será preenchido por JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+    // Configuração do Firebase (substitua pelos seus dados)
+    const firebaseConfig = {
+      apiKey: "AIzaSyBMSPNcmkGO5X_2Q6cVErlkFFwPRzCPJgY",
+      authDomain: "acuracidade-2cf23.firebaseapp.com",
+      databaseURL: "https://SEU-PROJETO-default-rtdb.firebaseio.com",
+      projectId: "acuracidade-2cf23",
+      storageBucket: "acuracidade-2cf23.firebasestorage.app",
+      messagingSenderId: "342646953409",
+      appId: "1:342646953409:web:93d8c50a5412567f230b40"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // Questões sobre acuracidade de estoque (quantitativa e qualitativa)
+    const questions = [
+        {
+            texto: "Você fez o inventário físico de um item. O sistema mostra 100 unidades, mas você contou 98. Qual é a acuracidade quantitativa desse item?",
+            opcoes: ["98%", "100%", "2%", "50%"],
+            correta: 0,
+            explicacao: "Acuracidade quantitativa = (quantidade contada / quantidade no sistema) x 100 = (98/100) x 100 = 98%"
+        },
+        {
+            texto: "Durante o inventário, você percebe que o número de itens contados fisicamente é diferente da quantidade registrada no sistema. Esse tipo de divergência afeta qual aspecto da acuracidade de estoque?",
+            opcoes: ["Acuracidade qualitativa", "Acuracidade de localização", "Acuracidade quantitativa", "Acuracidade financeira"],
+            correta: 2,
+            explicacao: "A acuracidade quantitativa mede se a quantidade registrada no sistema corresponde à quantidade física encontrada no estoque."
+        },
+        {
+            texto: "Se o sistema mostra 200 itens e você encontra 200, mas 5 estão com embalagem danificada, qual a acuracidade qualitativa?",
+            opcoes: ["100%", "97.5%", "95%", "5%"],
+            correta: 1,
+            explicacao: "Acuracidade qualitativa = (itens em boas condições / total contado) x 100 = (195/200) x 100 = 97,5%"
+        },
+        {
+            texto: "Por que medir a acuracidade de estoque é importante para a logística?",
+            opcoes: [
+                "Ajuda a evitar rupturas ou excessos de estoque",
+                "Garante entregas corretas e clientes satisfeitos",
+                "Reduz custos e perdas",
+                "Todas as alternativas"
+            ],
+            correta: 3,
+            explicacao: "A acuracidade de estoque melhora processos, reduz custos e aumenta a satisfação do cliente."
+        }
+    ];
+
+    // PREENCHE O RANKING GLOBAL via Firebase
+    function preencherRanking() {
+        const table = document.getElementById("rankingTable");
+        table.innerHTML = "<tr><td colspan='4'>Carregando...</td></tr>";
+        db.ref('ranking').orderByChild('tempo').limitToFirst(10).once('value', function(snapshot) {
+            let data = [];
+            snapshot.forEach(function(child) { data.push(child.val()); });
+            table.innerHTML = "";
+            data.sort((a, b) => a.tempo - b.tempo);
+            data.forEach((item, idx) => {
+                table.innerHTML += `<tr>
+                    <td>${idx+1}</td>
+                    <td>${item.nome}</td>
+                    <td>${item.tempo}</td>
+                    <td>${item.medalha}</td>
+                </tr>`;
+            });
+            if(data.length === 0) table.innerHTML = "<tr><td colspan='4'>Nenhum registro ainda.</td></tr>";
+        });
+    }
+
+    // VARIÁVEIS DE ESTADO
+    let currentQ = 0, acertos = 0, startTime = 0, interval, nomeAluno = "";
+    let respostas = [];
+
+    // CRONÔMETRO
+    function startTimer() {
+        document.getElementById("timer").classList.remove("hidden");
+        startTime = Date.now();
+        interval = setInterval(() => {
+            document.getElementById("time").innerText = Math.floor((Date.now() - startTime)/1000);
+        }, 500);
+    }
+    function stopTimer() {
+        clearInterval(interval);
+        return Math.floor((Date.now() - startTime)/1000);
+    }
+
+    // MOSTRA QUESTÃO
+    function mostrarQuestao() {
+        let q = questions[currentQ];
+        document.getElementById("questionBox").innerText = "Questão " + (currentQ+1) + ": " + q.texto;
+        let opHTML = "";
+        q.opcoes.forEach((op, i) => {
+            opHTML += `<div style="margin: 6px 0;">
+                <input type="radio" name="opt" id="opt${i}" value="${i}">
+                <label for="opt${i}">${op}</label>
+            </div>`;
+        });
+        document.getElementById("optionsBox").innerHTML = opHTML;
+        document.getElementById("resultBox").innerText = "";
+        document.getElementById("nextBtn").classList.add("hidden");
+    }
+
+    // INICIA ATIVIDADE
+    document.getElementById("startBtn").onclick = function() {
+        nomeAluno = document.getElementById("studentName").value.trim();
+        if (!nomeAluno) {
+            alert("Por favor, digite seu nome para iniciar.");
+            return;
+        }
+        currentQ = 0; acertos = 0; respostas = [];
+        document.querySelector(".activity").style.display = "block";
+        this.disabled = true;
+        document.getElementById("studentName").disabled = true;
+        mostrarQuestao();
+        startTimer();
+    };
+
+    // EVENTO DE RESPOSTA
+    document.getElementById("optionsBox").onclick = function(e) {
+        if (e.target && e.target.name === "opt") {
+            let idx = parseInt(e.target.value);
+            let correta = questions[currentQ].correta;
+            let box = document.getElementById("resultBox");
+            respostas[currentQ] = idx;
+            if (idx === correta) {
+                box.innerHTML = "✅ Correto!<br><span style='font-size:0.97em; color:gray;'>" + questions[currentQ].explicacao + "</span>";
+                acertos++;
+            } else {
+                box.innerHTML = "❌ Incorreto.<br>Resposta correta: <b>"+questions[currentQ].opcoes[correta]+"</b><br><span style='font-size:0.97em; color:gray;'>" + questions[currentQ].explicacao + "</span>";
+            }
+            document.getElementById("nextBtn").classList.remove("hidden");
+            // Desabilita opções
+            const opts = document.querySelectorAll('input[name="opt"]');
+            opts.forEach(o => o.disabled = true);
+        }
+    };
+
+    // PRÓXIMA QUESTÃO OU FINALIZA
+    document.getElementById("nextBtn").onclick = function() {
+        currentQ++;
+        if (currentQ < questions.length) {
+            mostrarQuestao();
+        } else {
+            let tempo = stopTimer();
+            let medalha = "";
+            if (tempo <= 35) medalha = "🥇 Ouro";
+            else if (tempo <= 50) medalha = "🥈 Prata";
+            else if (tempo <= 65) medalha = "🥉 Bronze";
+            else medalha = "🎖️ Participação";
+            document.getElementById("activity").innerHTML = `
+                <div style="text-align:center;">
+                    <h2>Atividade Finalizada!</h2>
+                    <p><b>${nomeAluno}</b>, você acertou <b>${acertos}</b> de ${questions.length} questões.</p>
+                    <p>Tempo: <b>${tempo} segundos</b></p>
+                    <p>Medalha: <span class="medal">${medalha}</span></p>
+                    <p>Obrigado por participar! Compartilhe seu resultado 😉</p>
+                    <button onclick="location.reload()">Tentar novamente</button>
+                </div>
+            `;
+            // Salva resultado no ranking integrado Firebase
+            db.ref('ranking').push({
+                nome: nomeAluno,
+                tempo: tempo,
+                medalha: medalha.includes("Ouro") ? "🥇" : medalha.includes("Prata") ? "🥈" : medalha.includes("Bronze") ? "🥉" : ""
+            }, preencherRanking);
+        }
+    };
+
+    window.onload = preencherRanking;
+    </script>
+</body>
+</html>
